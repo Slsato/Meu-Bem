@@ -55,4 +55,6 @@ flutter:
         - asset: assets/fonts/TitilliumWeb-Regular.ttf
         - asset: assets/fonts/TitilliumWeb-Light.ttf
         - asset: assets/fonts/TitilliumWeb-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/TitilliumWeb-Bold.ttf
           style: italic
