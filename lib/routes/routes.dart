@@ -5,6 +5,6 @@ class Routes {
   static const medication = '/medication';
   static const login = '/login';
   static const register = '/register';
-  static const  home = '/home';
-  static const bula = '/bula';
+  static const home = '/home';
+  static const autoexame = '/autoexame'; // permanece
 }

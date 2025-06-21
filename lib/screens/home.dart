@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:health_truck/constants_colors.dart';
 import 'package:health_truck/screens/agenda.dart';
+import 'package:health_truck/screens/autoexame.dart';
 import 'package:health_truck/screens/imc.dart';
 import '../models/home_model.dart';
-import 'bula.dart';
 import 'medication.dart';
 
 class Home extends StatefulWidget {
@@ -19,27 +19,26 @@ class _HomeState extends State<Home> {
   static const List<Widget> _widgetOptions = [
     IMCCalculator(),
     MedicationReminderApp(),
-    BulaApp(),
     AgendaMedica(),
-    BulaApp(),
+    AutoexameScreen(), // nova tela
   ];
 
   final List<BottomNavItem> _bottomNavItems = [
     BottomNavItem(
       icon: Icons.calculate,
-      label: 'Calculadora de IMC',
+      label: 'IMC',
     ),
     BottomNavItem(
       icon: Icons.medication,
       label: 'Medicamentos',
     ),
     BottomNavItem(
-      icon: Icons.search,
-      label: 'BB Busca Bula',
-    ),
-    BottomNavItem(
       icon: Icons.calendar_today,
       label: 'Agenda',
+    ),
+    BottomNavItem(
+      icon: Icons.favorite, // ícone sugestivo
+      label: 'Autoexame',
     ),
   ];
 
@@ -67,8 +66,9 @@ class _HomeState extends State<Home> {
         backgroundColor: Colors.blueAccent,
         currentIndex: _selectedIndex,
         selectedItemColor: ColorsDefaults.background,
-        unselectedItemColor: Colors.blueAccent,
+        unselectedItemColor: Colors.white,
         onTap: _onItemTapped,
+        type: BottomNavigationBarType.fixed,
       ),
     );
   }

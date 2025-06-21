@@ -34,13 +34,13 @@ class _AgendaMedicaState extends State<AgendaMedica> {
   Widget build(BuildContext context) {
     return Layout(
       title: 'Lembrete de Consultas',
-      body: Padding(
+      body: Container(
+        color: Colors.white, // Fundo branco
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 Expanded(
                   child: TextButton(
@@ -50,6 +50,7 @@ class _AgendaMedicaState extends State<AgendaMedica> {
                         : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: TextButton(
                     onPressed: () => _selectTime(context),
@@ -60,6 +61,7 @@ class _AgendaMedicaState extends State<AgendaMedica> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
             buildText('Especialidade'),
             buildTextField(
               controller: _typeController,
@@ -76,7 +78,9 @@ class _AgendaMedicaState extends State<AgendaMedica> {
             ),
             const SizedBox(height: 20),
             Expanded(
-              child: ListView.builder(
+              child: _appointments.isEmpty
+                  ? const Center(child: Text('Nenhum lembrete cadastrado.'))
+                  : ListView.builder(
                 itemCount: _appointments.length,
                 itemBuilder: (context, index) {
                   return Container(
@@ -86,16 +90,20 @@ class _AgendaMedicaState extends State<AgendaMedica> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: ListTile(
-                      title: Text(_appointments[index], style: TextStyle(fontWeight: FontWeight.w700)),
+                      title: Text(
+                        _appointments[index],
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700, color: Colors.black),
+                      ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            icon: Icon(Icons.edit, color: Colors.white),
+                            icon: const Icon(Icons.edit, color: Colors.blue),
                             onPressed: () => _editAppointment(index),
                           ),
                           IconButton(
-                            icon: Icon(Icons.delete, color: Colors.white),
+                            icon: const Icon(Icons.delete, color: Colors.red),
                             onPressed: () => dialogDelete(
                               context: context,
                               index: index,
@@ -103,15 +111,9 @@ class _AgendaMedicaState extends State<AgendaMedica> {
                                 setState(() {
                                   _appointments.removeAt(index);
                                   _saveAppointments();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content:
-                                          Text('Lembrete excluído com sucesso!'),
-                                    ),
-                                  );
+                                  SnackBarApp.success('Lembrete excluído!');
                                 });
-                                Navigator.of(context)
-                                    .pop(); // Fechar o AlertDialog após a exclusão
+                                Navigator.of(context).pop();
                               },
                             ),
                           ),
@@ -128,7 +130,7 @@ class _AgendaMedicaState extends State<AgendaMedica> {
     );
   }
 
-  Container buttonDate(dynamic dateSelected) {
+  Container buttonDate(String label) {
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: ColorsDefaults.background),
@@ -136,7 +138,7 @@ class _AgendaMedicaState extends State<AgendaMedica> {
       ),
       alignment: Alignment.center,
       height: 44,
-      child: buildText(dateSelected),
+      child: buildText(label),
     );
   }
 
@@ -147,7 +149,7 @@ class _AgendaMedicaState extends State<AgendaMedica> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
     );
-    if (picked != null && picked != _selectedDate) {
+    if (picked != null) {
       setState(() {
         _selectedDate = picked;
       });
@@ -159,7 +161,7 @@ class _AgendaMedicaState extends State<AgendaMedica> {
       context: context,
       initialTime: TimeOfDay.now(),
     );
-    if (picked != null && picked != _selectedTime) {
+    if (picked != null) {
       setState(() {
         _selectedTime = picked;
       });
@@ -173,14 +175,12 @@ class _AgendaMedicaState extends State<AgendaMedica> {
       String date =
           '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}';
       String time = _selectedTime!.format(context);
-      String type = _typeController.text;
+      String type = _typeController.text.trim();
 
       setState(() {
         _appointments.add('$date $time - $type');
       });
-      _typeController.clear();
-      _selectedDate = null;
-      _selectedTime = null;
+      _clearFields();
       _saveAppointments();
       SnackBarApp.success('Lembrete salvo com sucesso!');
     } else {
@@ -189,26 +189,31 @@ class _AgendaMedicaState extends State<AgendaMedica> {
   }
 
   void _editAppointment(int index) {
-    // Extrair os dados do lembrete selecionado
     String appointment = _appointments[index];
-    // Dividir a string do lembrete para recuperar os valores individuais
-    List<String> appointmentParts = appointment.split(' - ');
 
-    // Preencher os campos com os valores do lembrete selecionado
+    List<String> parts = appointment.split(' - ');
+    String dateTime = parts[0];
+    String type = parts[1];
+
+    List<String> dateTimeParts = dateTime.split(' ');
+    String datePart = dateTimeParts[0];
+    String timePart = dateTimeParts[1];
+
+    List<String> dateParts = datePart.split('/');
+    int day = int.parse(dateParts[0]);
+    int month = int.parse(dateParts[1]);
+    int year = int.parse(dateParts[2]);
+
+    List<String> timeParts = timePart.split(':');
+    int hour = int.parse(timeParts[0]);
+    int minute = int.parse(timeParts[1]);
+
     setState(() {
       isEdit = true;
       _editedIndex = index;
-      _typeController.text = appointmentParts[1]; // Especialidade
-      // Extrair a data e hora do lembrete para preencher _selectedDate e _selectedTime
-      List<String> dateTimeParts = appointmentParts[0].split('/');
-      int day = int.parse(dateTimeParts[0]);
-      int month = int.parse(dateTimeParts[1]);
-      int year = int.parse(dateTimeParts[2]);
+      _typeController.text = type;
       _selectedDate = DateTime(year, month, day);
-      _selectedTime = TimeOfDay(
-        hour: _selectedTime!.hour,
-        minute: _selectedTime!.minute,
-      );
+      _selectedTime = TimeOfDay(hour: hour, minute: minute);
     });
   }
 
@@ -219,20 +224,26 @@ class _AgendaMedicaState extends State<AgendaMedica> {
       String date =
           '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}';
       String time = _selectedTime!.format(context);
-      String type = _typeController.text;
+      String type = _typeController.text.trim();
 
       setState(() {
         _appointments[_editedIndex!] = '$date $time - $type';
         isEdit = false;
-        _typeController.clear();
-        _selectedDate = null;
-        _selectedTime = null;
       });
+      _clearFields();
       _saveAppointments();
       SnackBarApp.success('Lembrete editado com sucesso!');
     } else {
       SnackBarApp.error('Por favor, preencha todos os campos!');
     }
+  }
+
+  void _clearFields() {
+    _typeController.clear();
+    _selectedDate = null;
+    _selectedTime = null;
+    isEdit = false;
+    _editedIndex = null;
   }
 
   void _saveAppointments() async {

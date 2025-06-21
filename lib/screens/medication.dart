@@ -1,142 +1,267 @@
-import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:health_truck/constants_colors.dart';
-import 'package:health_truck/widget/button.dart';
-import 'package:health_truck/widget/default_layout.dart';
-import 'package:health_truck/widget/snack_bar.dart';
-import 'package:health_truck/widget/textFormField.dart';
-import 'package:health_truck/widget/text_labels.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:timezone/data/latest_all.dart' as tz;
-import 'package:timezone/timezone.dart' as tz;
-
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-FlutterLocalNotificationsPlugin();
 
 class MedicationReminderApp extends StatefulWidget {
   const MedicationReminderApp({super.key});
 
   @override
-  _MedicationReminderAppState createState() => _MedicationReminderAppState();
+  State<MedicationReminderApp> createState() => _MedicationReminderAppState();
 }
 
 class _MedicationReminderAppState extends State<MedicationReminderApp> {
-  final TextEditingController _typeController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _intervalController = TextEditingController();
   final TextEditingController _daysController = TextEditingController();
 
-  List<String> _reminders = [];
-  List<List<DateTime>> _schedules = [];
-  bool isEdit = false;
-  int? editingIndex;
+  final List<Map<String, dynamic>> _medications = [];
+
+  late FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin;
 
   @override
   void initState() {
     super.initState();
+    flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
     _initializeNotifications();
-    _loadReminders();
   }
 
-  Future<void> _initializeNotifications() async {
-    tz.initializeTimeZones();
+  void _initializeNotifications() {
+    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const initializationSettings = InitializationSettings(android: android);
 
-    const AndroidInitializationSettings initializationSettingsAndroid =
-    AndroidInitializationSettings('@mipmap/ic_launcher');
+    flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  }
 
-    const InitializationSettings initializationSettings =
-    InitializationSettings(android: initializationSettingsAndroid);
+  Future<void> _showNotification(String title, String body) async {
+    const androidDetails = AndroidNotificationDetails(
+      'medication_channel_id',
+      'Lembrete de Medicamento',
+      channelDescription: 'Notificações para lembrar dos medicamentos',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
 
-    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+    const notificationDetails = NotificationDetails(android: androidDetails);
+
+    await flutterLocalNotificationsPlugin.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title,
+      body,
+      notificationDetails,
+    );
+  }
+
+  void _addMedication() {
+    String name = _nameController.text.trim();
+    String interval = _intervalController.text.trim();
+    String days = _daysController.text.trim();
+
+    if (name.isEmpty || interval.isEmpty || days.isEmpty) {
+      _showSnackbar('Por favor, preencha todos os campos');
+      return;
+    }
+
+    int? intervalHours = int.tryParse(interval);
+    int? daysInt = int.tryParse(days);
+
+    if (intervalHours == null || daysInt == null) {
+      _showSnackbar('Intervalo e dias devem ser números válidos');
+      return;
+    }
+
+    if (intervalHours <= 0 || daysInt <= 0) {
+      _showSnackbar('Intervalo e dias devem ser maiores que zero');
+      return;
+    }
+
+    setState(() {
+      _medications.add({
+        'name': name,
+        'interval': intervalHours,
+        'days': daysInt,
+      });
+    });
+
+    _showSnackbar('Lembrete adicionado com sucesso!');
+    _showNotification('Lembrete de Medicamento', 'Tomar $name');
+
+    _nameController.clear();
+    _intervalController.clear();
+    _daysController.clear();
+  }
+
+  void _editMedication(int index) {
+    final med = _medications[index];
+    final TextEditingController nameController = TextEditingController(text: med['name']);
+    final TextEditingController intervalController = TextEditingController(text: med['interval'].toString());
+    final TextEditingController daysController = TextEditingController(text: med['days'].toString());
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Editar Medicamento'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Nome'),
+            ),
+            TextField(
+              controller: intervalController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Intervalo (h)'),
+            ),
+            TextField(
+              controller: daysController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Dias de uso'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              String name = nameController.text.trim();
+              int? interval = int.tryParse(intervalController.text.trim());
+              int? days = int.tryParse(daysController.text.trim());
+
+              if (name.isNotEmpty && interval != null && days != null) {
+                setState(() {
+                  _medications[index] = {
+                    'name': name,
+                    'interval': interval,
+                    'days': days,
+                  };
+                });
+                Navigator.pop(context);
+                _showSnackbar('Medicamento atualizado');
+              } else {
+                _showSnackbar('Campos inválidos');
+              }
+            },
+            child: const Text('Salvar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteMedication(int index) {
+    setState(() {
+      _medications.removeAt(index);
+    });
+    _showSnackbar('Medicamento removido');
+  }
+
+  void _showSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Colors.grey),
+      border: const OutlineInputBorder(),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Layout(
-      title: 'Lembrete de Medicamentos',
+    return Scaffold(
+      backgroundColor: Colors.white, // Fundo branco
+      appBar: AppBar(
+        title: const Text('Lembrete de Medicamentos'),
+        backgroundColor: Colors.teal,
+      ),
       body: Padding(
-        padding: const EdgeInsets.all(15.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            buildText('Nome do Remédio'),
-            textForm(
-              textInputAction: TextInputAction.next,
-              controller: _typeController,
-              maxLength: 20,
-              textInputType: TextInputType.text,
-              obscureText: false,
-              hintText: 'Ex: Dipirona',
+            const Text('Nome do Remédio'),
+            TextField(
+              controller: _nameController,
+              style: const TextStyle(color: Colors.black), // Texto preto
+              decoration: _inputDecoration('Ex: Dipirona'),
             ),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      buildText('Intervalo (h)'),
-                      textForm(
-                        textInputAction: TextInputAction.next,
+                      const Text('Intervalo (h)'),
+                      TextField(
                         controller: _intervalController,
-                        maxLength: 2,
-                        textInputType: TextInputType.number,
-                        obscureText: false,
-                        hintText: 'Ex: 8',
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: Colors.black),
+                        decoration: _inputDecoration('Ex: 8'),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      buildText('Dias de uso'),
-                      textForm(
-                        textInputAction: TextInputAction.done,
+                      const Text('Dias de uso'),
+                      TextField(
                         controller: _daysController,
-                        maxLength: 2,
-                        textInputType: TextInputType.number,
-                        obscureText: false,
-                        hintText: 'Ex: 7',
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: Colors.black),
+                        decoration: _inputDecoration('Ex: 7'),
                       ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 30),
-            customElevatedButton(
-              context: context,
-              text: isEdit ? 'Salvar' : 'Adicionar',
-              onPress: _handleReminder,
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _addMedication,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                ),
+                child: const Text('Adicionar'),
+              ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 8),
+            const Text(
+              'Lembretes cadastrados:',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
             Expanded(
-              child: ListView.builder(
-                itemCount: _reminders.length,
+              child: _medications.isEmpty
+                  ? const Center(child: Text('Nenhum lembrete cadastrado.'))
+                  : ListView.builder(
+                itemCount: _medications.length,
                 itemBuilder: (context, index) {
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    decoration: BoxDecoration(
-                      color: ColorsDefaults.background,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                  final med = _medications[index];
+                  return Card(
                     child: ListTile(
-                      title: Text(
-                        _reminders[index],
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
+                      title: Text(med['name']),
+                      subtitle: Text(
+                          'Intervalo: ${med['interval']}h - Dias: ${med['days']}'),
+                      trailing: Wrap(
+                        spacing: 12,
                         children: [
                           IconButton(
                             icon: const Icon(Icons.edit, color: Colors.blue),
-                            onPressed: () => _editReminder(index),
+                            onPressed: () => _editMedication(index),
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _removeReminder(index),
+                            onPressed: () => _deleteMedication(index),
                           ),
                         ],
                       ),
@@ -149,123 +274,5 @@ class _MedicationReminderAppState extends State<MedicationReminderApp> {
         ),
       ),
     );
-  }
-
-  void _handleReminder() async {
-    final String type = _typeController.text.trim();
-    final int? interval = int.tryParse(_intervalController.text);
-    final int? days = int.tryParse(_daysController.text);
-
-    if (type.isEmpty || interval == null || days == null) {
-      SnackBarApp.error("Preencha todos os campos corretamente!");
-      return;
-    }
-
-    final schedule = _generateSchedule(interval, days);
-
-    if (isEdit && editingIndex != null) {
-      await _cancelNotifications(editingIndex!);
-      await _scheduleNotifications(editingIndex!, type, schedule);
-      setState(() {
-        _reminders[editingIndex!] =
-        'Remédio: $type | Intervalo: ${interval}h | Duração: ${days}d | ${schedule.length} notificações';
-        _schedules[editingIndex!] = schedule;
-        isEdit = false;
-        editingIndex = null;
-      });
-    } else {
-      final newIndex = _reminders.length;
-      await _scheduleNotifications(newIndex, type, schedule);
-      setState(() {
-        _reminders.add(
-            'Remédio: $type | Intervalo: ${interval}h | Duração: ${days}d | ${schedule.length} notificações');
-        _schedules.add(schedule);
-      });
-    }
-
-    _typeController.clear();
-    _intervalController.clear();
-    _daysController.clear();
-    _saveReminders();
-    SnackBarApp.success(
-        "Lembrete ${isEdit ? 'atualizado' : 'adicionado'} com sucesso!");
-  }
-
-  List<DateTime> _generateSchedule(int interval, int days) {
-    final now = DateTime.now();
-    final totalHours = days * 24;
-    final List<DateTime> schedule = [];
-
-    for (int hour = 0; hour < totalHours; hour += interval) {
-      schedule.add(now.add(Duration(hours: hour)));
-    }
-    return schedule;
-  }
-
-  Future<void> _scheduleNotifications(
-      int idBase, String title, List<DateTime> schedule) async {
-    for (int i = 0; i < schedule.length; i++) {
-      await flutterLocalNotificationsPlugin.zonedSchedule(
-        idBase * 100 + i,
-        'Hora do medicamento',
-        'Tomar: $title',
-        tz.TZDateTime.from(schedule[i], tz.local),
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'med_channel',
-            'Lembretes de Medicamentos',
-            importance: Importance.max,
-            priority: Priority.high,
-          ),
-        ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        payload: 'lembrete_$idBase',
-        // Removido os parâmetros problemáticos
-      );
-    }
-  }
-
-  Future<void> _cancelNotifications(int idBase) async {
-    for (int i = 0; i < 100; i++) {
-      await flutterLocalNotificationsPlugin.cancel(idBase * 100 + i);
-    }
-  }
-
-  void _removeReminder(int index) async {
-    await _cancelNotifications(index);
-    setState(() {
-      _reminders.removeAt(index);
-      _schedules.removeAt(index);
-    });
-    _saveReminders();
-    SnackBarApp.success("Lembrete removido!");
-  }
-
-  void _editReminder(int index) {
-    final parts = _reminders[index].split('|');
-    final String med = parts[0].split(':')[1].trim();
-    final String interval = parts[1].replaceAll(RegExp(r'[^0-9]'), '');
-    final String days = parts[2].replaceAll(RegExp(r'[^0-9]'), '');
-
-    setState(() {
-      isEdit = true;
-      editingIndex = index;
-      _typeController.text = med;
-      _intervalController.text = interval;
-      _daysController.text = days;
-    });
-  }
-
-  void _saveReminders() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('reminders', _reminders);
-  }
-
-  void _loadReminders() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _reminders = prefs.getStringList('reminders') ?? [];
-      _schedules = List.generate(_reminders.length, (_) => []);
-    });
   }
 }
